@@ -9,5 +9,5 @@ class Notify:
     def notify(self, channel: str, kwargs: Optional[dict] = None) -> None:
         ...
 
-    def when_executed(self, func:Callable, channel:str, contain_result:bool = False, kwargs:Optional[dict] = None) -> Callable:
+    def when_executed(self, channel:str, kwargs:Optional[dict] = None) -> Callable:
         ...
