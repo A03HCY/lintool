@@ -1,6 +1,10 @@
-from . import util
+from . import utils
 from . import notify
+from . import identify
 
-from .util import (
-    try_for
+from .utils import (
+    try_for, email, safecode
+)
+from .identify import (
+    Identify,  Mind
 )

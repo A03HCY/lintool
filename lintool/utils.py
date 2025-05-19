@@ -1,6 +1,10 @@
-from typing import Callable
+from typing    import Callable
 from functools import wraps
-from time import sleep
+from time      import sleep
+from re        import match, search
+from .data     import EmailMatch
+import random
+import string
 
 def try_for(times: int, delay: int = 0) -> Callable:
     def decorator(func: Callable):
@@ -32,4 +36,20 @@ def try_for(times: int, delay: int = 0) -> Callable:
         return wrapper
     return decorator
 
+
+def email(email:str) -> EmailMatch:
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    matched_email = search(email_pattern, email)
+    matched_email = matched_email.group() if matched_email else ''
+    return EmailMatch(
+        matched_email=matched_email,
+        is_email=bool(matched_email == email)
+    )
+
+
+def safecode(num:int=6, pure_num:bool=False) -> str:
+    if pure_num:
+        return ''.join(random.choices(string.digits, k=num))
+    else:
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=num))
 
