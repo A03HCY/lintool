@@ -1,8 +1,18 @@
-from   typing import Any, Callable, Union, List, Tuple, Dict
+from typing      import Any, Callable, Union, List, Tuple, Dict
+from dataclasses import dataclass, field
+from .mcp        import MCPClient
 import inspect
 import re
 import os
 import json
+
+
+@dataclass
+class Endpoint:
+    model:str    = field(default='')
+    key:str      = field(default='')
+    endpoint:str = field(default='')
+
 
 def to_dict_recursive(obj: Any) -> Union[Dict, List, Tuple, Any]:
     """
@@ -141,6 +151,33 @@ class Identify:
                 self._map[func_name] = func_map
         
         return self
+    
+    def add_mcp(self, mcp: MCPClient):
+        tools = mcp.list_tools()
+        for tool in tools:
+            func_name = tool['name']
+            description = tool['description']
+            parameters = tool['inputSchema']
+            
+            # 注册函数元数据
+            self._functions[func_name] = {
+                'type': 'function',
+                'name': func_name,
+                'description': description,
+                'parameters': parameters,
+            }
+            
+            # 使用闭包工厂捕获当前func_name的值
+            def create_tool_function(current_func_name):
+                def mcp_tool(**kwargs):
+                    return mcp.call_tool(current_func_name, input_data=kwargs)
+                return mcp_tool
+            
+            # 生成并存储工具函数
+            self._map[func_name] = {
+                'original_function': create_tool_function(func_name),  # 立即绑定当前func_name
+                'mcp_name': mcp.server_name,
+            }
         
     def identify(self, func: Callable[..., Any]) -> Callable[..., Any]:
         '''
@@ -456,14 +493,14 @@ class Identify:
                 "tool_call_id": call['id'],
                 "role": self.tool_role,
                 "name": funtion_name,
-                "content": str(self.call(funtion_name, **kwargs)),
+                "content": str(to_dict_recursive(self.call(funtion_name, **kwargs))),
             }
             final.append(result)
         return final
 
 
 class Mind:
-    def __init__(self, model:str, key:str, endpoint:str=None, identify:Identify=None):
+    def __init__(self, model:str|Endpoint, key:str=None, endpoint:str=None, identify:Identify=None):
         self.model = model
         self.idf = identify or Identify()
         self.identify = self.idf.identify
@@ -476,16 +513,34 @@ class Mind:
         self._done:   bool = True
 
         self._predefined: Dict[str, str] = {}
-        self._notice: Dict[str, str] = {}
+        self._notice: List[Tuple[str, str]] = {}
 
         self.set_model(model)
+        if isinstance(model, Endpoint):
+            self.reload_endpoint(model)
+        
+        self.on_preparing_call: Callable = None
 
     def tool(self) -> Callable:
         return self.idf.identify
     
+    def add_tool(self, func: Callable|List[Callable]) -> None:
+        if isinstance(func, list):
+            for f in func: self.add_tool(f)
+        else:
+            self.idf.identify(func=func)
+    
     def set_model(self, model:str):
         self.model = model
         self.idf._predefined_model = model
+    
+    def reload_endpoint(self, endpoint:Endpoint) -> None:
+        import openai
+        self.set_model(endpoint.model)
+        self._ai = openai.OpenAI(
+            api_key  = endpoint.key,
+            base_url = endpoint.endpoint
+        )
     
     def add_memory(self, role:str, content:str|list[dict[str, Any]], **kwargs):
         data = {
@@ -524,8 +579,8 @@ class Mind:
             pre = self.check_content(k, i)
             if pre: new.append(pre)
         new.extend(self._memories)
-        for k, i in self._notice.items():
-            pre = self.check_content(k, i)
+        for i in self._notice:
+            pre = self.check_content(i[0], i[1])
             if pre: new.append(pre)
         return new
     
@@ -594,6 +649,10 @@ class Mind:
                     if tcchunk['id']:
                         tc['id'] += tcchunk['id']
                     if tcchunk['function']['name']:
+                        if self.on_preparing_call:
+                            try:
+                                self.on_preparing_call(tcchunk['function']['name'])
+                            except: pass
                         tc['function']['name'] += tcchunk['function']['name']
                     if tcchunk['function']['arguments']:
                         tc['function']['arguments'] += tcchunk['function']['arguments']

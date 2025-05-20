@@ -1,7 +1,7 @@
 from typing    import Callable
 from functools import wraps
 from time      import sleep
-from re        import match, search
+from re        import search
 from .data     import EmailMatch
 import random
 import string
