@@ -16,3 +16,5 @@ from .data.cma import (
 from .mcp import (
     MCPClient, MCPGroup
 )
+
+__version__ = '0.0.1'

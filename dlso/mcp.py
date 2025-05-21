@@ -231,21 +231,3 @@ class MCPGroup:
         self._bound_identify = identify
         for client in self._clients.values():
             identify.add_mcp(client)
-
-
-# 使用示例
-if __name__ == "__main__":
-    from rich import print
-    client = MCPClient(
-        endpoint='https://mcp.api-inference.modelscope.cn/sse/1ac02c030fe540'
-    )
-    print(f'Connected to MCP server: {client.server_name} {client.server_version}')
-
-    try:
-        print(client.list_tools())
-        print(client.call_tool())
-
-    except Exception as e:
-        print(f"Error occurred: {str(e)}")
-    finally:
-        client.close()
