@@ -10,7 +10,7 @@ mind = Mind(Endpoint(
 
 m = MCPGroup()
 m.bind(mind)
-m.add_client('https://mcp.api-inference.modelscope.cn/sse/1ac02c030fe540')
+m.add_client(['python3','-m','mcp_server_fetch'])
 
 @mind.on_preparing()
 def on_preparing(name):
@@ -27,7 +27,7 @@ def on_called(name, result):
 mind.add_tool([
     file_opration, directory_operation, archive_operation,
     CMA.req_city_id, CMA.req_now, CMA.req_7d_forecast, locate_geo,
-    fetch_web, post_data, download_file,
+    #fetch_web, post_data, download_file,
 ])
 
 def build_tools():

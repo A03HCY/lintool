@@ -5,9 +5,22 @@ import threading
 import requests
 import queue
 import json
+import subprocess
+
+
+class StdioClient:
+    def __init__(self, command:str) -> None:
+        self.command = command
+        self.process: subprocess.Popen = subprocess.Popen(self.command.split(' '), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.stdin = self.process.stdin
+        self.stdout = self.process.stdout
+
 
 class MCPClient:
-    def __init__(self, endpoint, name='mcp', version='0.1.0'):
+    def __init__(self, endpoint:str|list, name='mcp', version='0.1.0'):
+        if isinstance(endpoint, list):
+            endpoint = ' '.join(endpoint)
+        self._method: str = None
         self.client_name = name
         self.client_version = version
         self.server_name = None
@@ -20,6 +33,7 @@ class MCPClient:
         self.lock = threading.Lock()
         self._running = True
         self._next_id = 0  # 自增ID计数器
+        self._stdio: StdioClient = None
 
         # 启动消息接收线程
         self.recv_thread = threading.Thread(target=self._recv_loop, daemon=True)
@@ -51,10 +65,14 @@ class MCPClient:
 
     def _parse_base_url(self, endpoint):
         """从endpoint解析基础URL"""
+        if not 'http' in endpoint:
+            self._method = 'stdio'
+            return ''
+        self._method = 'sse'
         parsed = urlparse(endpoint)
         return f"{parsed.scheme}://{parsed.netloc}"
 
-    def _recv_loop(self):
+    def _sse_recv_loop(self):
         messages = SSEClient(self.endpoint)
         
         event = None
@@ -83,6 +101,27 @@ class MCPClient:
                     self.response_queues[msg_id].put(data)
                 else:
                     print(f"Unmatched response (id={msg_id})")
+    
+    def _stdio_recv(self):
+        if not self._running: return
+        try:
+            data = self._stdio.stdout.readline()
+        except:
+            self._running = False
+            return
+        if not data: return self._stdio_recv()
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            return
+        return data
+    
+    def _recv_loop(self):
+        if self._method == 'sse':
+            self._sse_recv_loop()
+        elif self._method == 'stdio':
+            self._stdio = StdioClient(self.endpoint)
+            self.endpoint_ready.set()
 
     def post(self, method=None, params=None, timeout=10, wait_for_response=True):
         self.endpoint_ready.wait()
@@ -112,11 +151,19 @@ class MCPClient:
         full_url = f"{self.base_url}{self.session}"
 
         try:
-            response = requests.post(
-                full_url,
-                json=data,
-                timeout=5
-            )
+            if self._method == 'sse':
+                response = requests.post(
+                    full_url,
+                    json=data,
+                    timeout=5
+                )
+            elif self._method == 'stdio':
+                self._stdio.stdin.write(json.dumps(data) + '\n')
+                self._stdio.stdin.flush()
+                if wait_for_response:
+                    data = self._stdio_recv()
+                    return data
+                return {"status": "sent"}
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"Request failed: {str(e)}")
 
@@ -167,13 +214,13 @@ class MCPGroup:
         self._clients: Dict[str, MCPClient] = {}
         self._bound_identify: Optional[Identify] = None
     
-    def add_client(self, client: Union[MCPClient, str]) -> None:
+    def add_client(self, client: Union[MCPClient, str, list]) -> None:
         """添加一个MCPClient到组中
         
         Args:
-            client: MCPClient实例或endpoint字符串
+            client: MCPClient实例或endpoint字符串或命令参数
         """
-        if isinstance(client, str):
+        if isinstance(client, str) or isinstance(client, list):
             client = MCPClient(endpoint=client)
         
         if not isinstance(client, MCPClient):
@@ -185,7 +232,7 @@ class MCPGroup:
         if client.server_name in self._clients:
             raise ValueError(f"client with server_name '{client.server_name}' already exists")
         
-        print(f'Added client: {client.server_name} ({client.server_version})')
+        print(f'Connected to MCP: {client.server_name} ({client.server_version})')
 
         self._clients[client.server_name] = client
         
