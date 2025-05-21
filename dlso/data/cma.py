@@ -1,86 +1,8 @@
 from typing      import List, Dict
-from dataclasses import dataclass, field
-from dlso        import try_for
+from dlso        import req_content, req_json
 from bs4         import BeautifulSoup
-import requests
+from .           import *
 
-
-@dataclass
-class GeoPoint:
-    lat: float = field(default=None)
-    lon: float = field(default=None)
-
-
-@dataclass
-class AlarmInfo:
-    id: str = field(default=None)
-    title: str = field(default=None)
-    headline: str = field(default=None)
-    effective_time: str = field(default=None)
-    description: str = field(default=None)
-    geo: GeoPoint = field(default_factory=GeoPoint)
-
-
-@dataclass
-class AlarmResult:
-    success: bool = field(default=False)
-    alarms:List[AlarmInfo] = field(default_factory=list)
-
-
-@dataclass
-class CityID:
-    id: str = field(default=None)
-    city_zh: str = field(default=None)
-    city_en: str = field(default=None)
-    country: str = field(default=None)
-
-
-@dataclass
-class WeatherNow:
-    precipitation: float = field(default=None)
-    temperature: float = field(default=None)
-    pressure: float = field(default=None)
-    humidity: float = field(default=None)
-    wind_degree: float = field(default=None)
-    wind_speed: float = field(default=None)
-    city: CityID = field(default_factory=CityID)
-    time: str = field(default=None)
-
-
-@dataclass
-class HourlyForecast:
-    time: str = field(default=None)
-    temperature: str = field(default=None)
-    precipitation: str = field(default=None)
-    wind_speed: str = field(default=None)
-    wind_direction: str = field(default=None)
-    pressure: str = field(default=None)
-    humidity: str = field(default=None)
-    cloudiness: str = field(default=None)
-
-@dataclass
-class WeatherForecast:
-    date: str
-    day_weather: str
-    day_wind: str
-    night_weather: str
-    night_wind: str
-    high: str
-    low: str
-    hours: List[HourlyForecast] = field(default_factory=list)
-
-
-@try_for(3)
-def req_json(url: str) -> dict:
-    r = requests.get(url)
-    r.raise_for_status()
-    return r.json()
-
-@try_for(3)
-def req_content(url: str) -> str:
-    r = requests.get(url)
-    r.raise_for_status()
-    return r.content.decode('utf-8')
 
 class CMA:
     @staticmethod
@@ -109,8 +31,8 @@ class CMA:
     @staticmethod
     def req_city_id(name:str) -> List[CityID]:
         """
-        根据城市名称、缩写、拼音请求对应的城市ID列表. 中国气象局API.
-        若查询结果不符合预期，请换一个城市名称
+        根据城市名称、缩写、拼音请求对应的城市ID列表. 中国气象局.
+        若查询结果不符合预期，请换一个更详细的名称
         
         Args:
             name (str): 要查询的城市名称
@@ -142,7 +64,7 @@ class CMA:
     @staticmethod
     def req_now(city_id:int|str|CityID) -> WeatherNow:   
         """
-        根据城市ID获取现在的天气信息. 中国气象局API. 
+        根据城市ID获取现在的天气信息. 中国气象局. 
         
         Args:
             city_id (int|str|CityID): 城市数字ID或CityID对象
@@ -172,7 +94,7 @@ class CMA:
     
     @staticmethod
     def req_7d_forecast(city_id:int|str|CityID) -> List[WeatherForecast]:
-        """获取指定城市7天天气预报数据（包括今天稍后的预报）. 中国气象局API. 
+        """获取指定城市7天天气预报数据（包括今天稍后的预报）. 中国气象局. 
         
         Args:
             city_id (int|str|CityID): 城市的数字ID，或CityID对象

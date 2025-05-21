@@ -1,48 +1,34 @@
-from dlso import Mind, Endpoint
+from dlso import *
 from rich import print
-from dlso.system_api import *
-from dlso.web_api import *
-from dlso.data.cma import *
-from dlso.mcp import *
+import time
 
-from test_lib import *
-
-client = MCPClient(
-    endpoint='https://mcp.api-inference.modelscope.cn/sse/d3938d6f10af4e'
-)
-
-print(f'Connected to MCP server: {client.server_name} {client.server_version}')
-
-qwq = Endpoint(
-    model='deepseek-v3',
+mind = Mind(Endpoint(
+    model='qwq-plus',
     key='sk-gqBb7gEaQ6FNRpGuimJxJCjoEFoyqGqWoxGQM7z1wrF0OACz',
     endpoint='http://yunwu.ai/v1'
-)
+))
 
-mind = Mind(model=qwq)
+m = MCPGroup()
+m.bind(mind)
+m.add_client('https://mcp.api-inference.modelscope.cn/sse/1ac02c030fe540')
 
-mind.idf.add_mcp(client)
-
-def on_call(func, args, kwargs):
-    print('\nCall:', func, f'{args}, {kwargs}')
-mind.idf.on_call = on_call
-
+@mind.on_preparing()
 def on_preparing(name):
     print('\nPreparing to call:', name)
-mind.on_preparing_call = on_preparing
 
-mind.add_tool([file_opration, directory_operation,
-               CMA.req_city_id, CMA.req_now, CMA.req_7d_forecast,
-               get_web, post_data, download_file,
-               bocha_websearch_tool])
+@mind.on_calling()
+def on_calling(func, args, kwargs):
+    print('\nCalling:', func, 'with', f'{args}', f'{kwargs}')
 
-@mind.tool()
-def locate_geo():
-    '''
-    获取用户的大致地理位置. 百度API.
-    '''
-    return req_json('https://qifu-api.baidubce.com/ip/local/geo/v1/district').get('data')
-    # return req_json('https://my.ip.cn/json/').get('data')
+@mind.on_called()
+def on_called(name, result):
+    print(f'\nCalled:', name)
+
+mind.add_tool([
+    file_opration, directory_operation, archive_operation,
+    CMA.req_city_id, CMA.req_now, CMA.req_7d_forecast, locate_geo,
+    fetch_web, post_data, download_file,
+])
 
 def build_tools():
     desp: dict[str, str] = {}
@@ -50,15 +36,25 @@ def build_tools():
         t = t['function']
         desp[t['name']] = t['description']
     mind._notice = [
-        #('system', f'You can internally and derectly call tool(s) as bellow without asking user for permission:\n{desp}'),
-        #('system', f'Current time: {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) }')
+        ('system', f'current time: {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) }')
     ]
 
 def stream(req:str):
     build_tools()
-    mind.add_memory('user', req)
+    mind.add_content('user', req)
     for i in mind.request(stream=True):
         print(i['content'], end='', flush=True)
     print()
 
-stream('当地明天的天气')
+
+try:
+    while True:
+        text = input('\n>>> ')
+        if text == 'exit':
+            break
+        if text == '/build':
+            print(mind.build_memory)
+            continue
+        stream(text)
+except KeyboardInterrupt:
+    print('\nBye!')

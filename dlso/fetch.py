@@ -1,3 +1,4 @@
+from dlso import try_for
 import requests
 import os
 import time
@@ -15,7 +16,20 @@ CONFIG = {
     'max_retries': 3
 }
 
-def get_web(url: str, params: dict = None, headers: dict = None) -> dict:
+
+@try_for(3)
+def req_json(url: str) -> dict:
+    r = requests.get(url)
+    r.raise_for_status()
+    return r.json()
+
+@try_for(3)
+def req_content(url: str) -> str:
+    r = requests.get(url)
+    r.raise_for_status()
+    return r.content.decode('utf-8')
+
+def fetch_web(url: str, params: dict = None, headers: dict = None) -> dict:
     '''
     获取互联网内容，如网页，js代码等
     

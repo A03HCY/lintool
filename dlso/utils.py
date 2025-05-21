@@ -5,6 +5,7 @@ from re        import search
 from .data     import EmailMatch
 import random
 import string
+import os
 
 def try_for(times: int, delay: int = 0) -> Callable:
     def decorator(func: Callable):
@@ -53,3 +54,25 @@ def safecode(num:int=6, pure_num:bool=False) -> str:
     else:
         return ''.join(random.choices(string.ascii_letters + string.digits, k=num))
 
+def locate_geo():
+    '''
+    获取用户的大致地理位置. 百度API.
+    Returns:
+        dict:  {'continent': '亚洲', 'country': '中国', 'owner': '...', 'isp': '...', 'prov': 
+                '...省', 'city': '...', 'district': '...'}
+    '''
+    from .fetch import req_json
+    result: dict = req_json('https://qifu-api.baidubce.com/ip/local/geo/v1/district').get('data', {})
+    result.pop('zipcode')
+    result.pop('adcode')
+    return result
+    # return req_json('https://my.ip.cn/json/').get('data')
+
+
+def req_file(path:str) -> str:
+    '''
+    从文件中读取内容
+    '''
+    if not os.path.isfile(path): return ''
+    with open(path, 'r', encoding='utf-8') as f:
+        return f.read()

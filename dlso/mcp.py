@@ -1,9 +1,10 @@
-from sseclient import SSEClient
+from typing       import Dict, Optional, Union
+from sseclient    import SSEClient
+from urllib.parse import urlparse
 import threading
 import requests
 import queue
 import json
-from urllib.parse import urlparse
 
 class MCPClient:
     def __init__(self, endpoint, name='mcp', version='0.1.0'):
@@ -157,6 +158,80 @@ class MCPClient:
 
     def close(self):
         self._running = False
+    
+
+class MCPGroup:
+    def __init__(self):
+        from .identify import Identify
+        """初始化MCPGroup，管理多个MCPClient实例"""
+        self._clients: Dict[str, MCPClient] = {}
+        self._bound_identify: Optional[Identify] = None
+    
+    def add_client(self, client: Union[MCPClient, str]) -> None:
+        """添加一个MCPClient到组中
+        
+        Args:
+            client: MCPClient实例或endpoint字符串
+        """
+        if isinstance(client, str):
+            client = MCPClient(endpoint=client)
+        
+        if not isinstance(client, MCPClient):
+            raise TypeError("client must be an instance of MCPClient or a string")
+            
+        if not client.server_name:
+            raise ValueError("client.server_name is not set")
+            
+        if client.server_name in self._clients:
+            raise ValueError(f"client with server_name '{client.server_name}' already exists")
+        
+        print(f'Added client: {client.server_name} ({client.server_version})')
+
+        self._clients[client.server_name] = client
+        
+        # 自动绑定到已绑定的Identify实例
+        if self._bound_identify:
+            self._bound_identify.add_mcp(client)
+    
+    def remove_client(self, name: str) -> None:
+        """从组中移除一个MCPClient
+        
+        Args:
+            name: 要移除的客户端名称
+        """
+        if name in self._clients:
+            # 从已绑定的Identify实例中移除
+            if self._bound_identify:
+                self._bound_identify.remove_mcp(name)
+            del self._clients[name]
+    
+    def req_client(self, name: str) -> Optional[MCPClient]:
+        """获取指定名称的MCPClient
+        
+        Args:
+            name: 客户端名称
+            
+        Returns:
+            MCPClient实例，如果不存在则返回None
+        """
+        return self._clients.get(name)
+    
+    def bind(self, identify) -> None:
+        """绑定Identify实例并加载所有MCPClient
+        
+        Args:
+            identify: Identify实例
+        """
+        from .identify import Identify, Mind
+        if isinstance(identify, Mind):
+            identify = identify.idf
+        if not isinstance(identify, Identify):
+            raise TypeError("identify must be an instance of Identify")
+            
+        self._bound_identify = identify
+        for client in self._clients.values():
+            identify.add_mcp(client)
+
 
 # 使用示例
 if __name__ == "__main__":
@@ -168,9 +243,7 @@ if __name__ == "__main__":
 
     try:
         print(client.list_tools())
-        print(client.call_tool(
-            "list_papers"
-        ))
+        print(client.call_tool())
 
     except Exception as e:
         print(f"Error occurred: {str(e)}")

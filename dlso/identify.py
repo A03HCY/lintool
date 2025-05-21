@@ -1,6 +1,7 @@
 from typing      import Any, Callable, Union, List, Tuple, Dict
 from dataclasses import dataclass, field
 from .mcp        import MCPClient
+from dlso        import req_file
 import inspect
 import re
 import os
@@ -76,35 +77,8 @@ class Identify:
         self.default_description = default_description
         self.var_positional_desc = var_positional_desc
         self.var_keyword_desc = var_keyword_desc
-        self.on_call: Callable = None
-
-        self._predefined_model: str = ''
-        self._role: dict = {
-            'function': ['qwq', 'qwen'],
-            'tool': ['deepseek']
-        }
-    
-    @property
-    def tool_role(self) -> str:
-        """
-        根据预定义模型返回工具角色类型
-        
-        Returns:
-            str: 'function' 或 'tool'，表示工具调用的角色类型
-        """
-        if not self._predefined_model: 
-            return 'tool'
-            
-        # 将预定义模型名转为小写
-        model_lower = self._predefined_model.lower()
-            
-        # 遍历角色和模型关键词列表
-        for role, keywords in self._role.items():
-            # 检查模型名称是否包含任何关键词
-            if any(keyword.lower() in model_lower for keyword in keywords):
-                return role
-                
-        return 'tool'  # 默认返回 'tool'
+        self.on_calling: Callable = None
+        self.on_called: Callable = None
     
     @property
     def functions_list(self) -> Dict[str, str]:
@@ -178,6 +152,23 @@ class Identify:
                 'original_function': create_tool_function(func_name),  # 立即绑定当前func_name
                 'mcp_name': mcp.server_name,
             }
+    
+    def remove_mcp(self, name: str) -> None:
+        """移除指定MCP服务器的所有工具
+        
+        Args:
+            name: MCP服务器名称
+        """
+        # 找出所有属于该MCP服务器的工具
+        to_remove = [
+            func_name for func_name, func_info in self._map.items() 
+            if func_info.get('mcp_name') == name
+        ]
+        
+        # 批量移除
+        for func_name in to_remove:
+            self._functions.pop(func_name, None)
+            self._map.pop(func_name, None)
         
     def identify(self, func: Callable[..., Any]) -> Callable[..., Any]:
         '''
@@ -467,18 +458,25 @@ class Identify:
             raise ValueError(f"函数 '{function_name}' 未注册")
             
         func = self._map[function_name]['original_function']
-        if self.on_call:
+        if self.on_calling:
             try:
-                new_func = self.on_call(func, args, kwargs)
+                new_func = self.on_calling(func, args, kwargs)
                 if isinstance(new_func, callable): func = new_func
             except: pass
-
+        
+        result = None
         try:
             # 调用函数并返回结果
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
         except Exception as e:
             # 捕获执行错误，添加更多上下文信息
             raise Exception(f"调用函数 '{function_name}' 时出错: {str(e)}") from e
+        finally:
+            if self.on_called:
+                try:
+                    self.on_called(func, result)
+                except: pass
+            return result if result else None
     
     def calls(self, info:list) -> dict:
         final = []
@@ -491,7 +489,7 @@ class Identify:
 
             result = {
                 "tool_call_id": call['id'],
-                "role": self.tool_role,
+                "role": "tool",
                 "name": funtion_name,
                 "content": str(to_dict_recursive(self.call(funtion_name, **kwargs))),
             }
@@ -501,23 +499,25 @@ class Identify:
 
 class Mind:
     def __init__(self, model:str|Endpoint, key:str=None, endpoint:str=None, identify:Identify=None):
-        self.model = model
-        self.idf = identify or Identify()
-        self.identify = self.idf.identify
+        self.model: str = None
+        self.idf: Identify = identify or Identify()
         import openai
-        self._ai = openai.OpenAI(
-            api_key  = key,
-            base_url = endpoint
-        )
-        self._memories: list[dict] = []
-        self._done:   bool = True
+        self._ai: openai.OpenAI = None
 
-        self._predefined: Dict[str, str] = {}
-        self._notice: List[Tuple[str, str]] = {}
-
-        self.set_model(model)
         if isinstance(model, Endpoint):
             self.reload_endpoint(model)
+        else:
+            self.set_model(model)
+            os.environ['OPENAI_API_KEY'] = key
+            self._ai = openai.OpenAI(
+                api_key  = key,
+                base_url = endpoint
+            )
+
+        self._memories: list[dict] = []
+
+        self._predefined: List[Tuple[str, str]] = []
+        self._notice: List[Tuple[str, str]] = []
         
         self.on_preparing_call: Callable = None
 
@@ -530,19 +530,37 @@ class Mind:
         else:
             self.idf.identify(func=func)
     
+    def on_calling(self) -> Callable:
+        def decorator(func: Callable) -> Callable:
+            self.idf.on_calling  = func
+            return func
+        return decorator
+    
+    def on_called(self) -> Callable:
+        def decorator(func: Callable) -> Callable:
+            self.idf.on_called  = func
+            return func
+        return decorator
+    
+    def on_preparing(self) -> Callable:
+        def decorator(func: Callable) -> Callable:
+            self.on_preparing_call = func
+            return func
+        return decorator
+    
     def set_model(self, model:str):
         self.model = model
-        self.idf._predefined_model = model
     
     def reload_endpoint(self, endpoint:Endpoint) -> None:
         import openai
         self.set_model(endpoint.model)
+        os.environ['OPENAI_API_KEY'] = endpoint.key
         self._ai = openai.OpenAI(
             api_key  = endpoint.key,
             base_url = endpoint.endpoint
         )
     
-    def add_memory(self, role:str, content:str|list[dict[str, Any]], **kwargs):
+    def add_content(self, role:str, content:str|list[dict[str, Any]], **kwargs):
         data = {
             "role": role,
             "content": content,
@@ -557,16 +575,13 @@ class Mind:
             'content': content
         }
     
-    def reset_predefined(self, data:dict):
+    def reset_predefined(self, data:List[Tuple[str, str]]):
         self._predefined = data
 
-    def set(self, target:str,  content:str):
-        if not target in self._predefined.keys(): return
-
+    def add_predefined_prompt(self, role:str,  content:str):
         if os.path.isfile(content):
-            with open(content, 'r', encoding='utf-8') as f:
-                content = f.read()
-        self._predefined[target] = content
+            content = req_file(content)
+        self._predefined.append((role, content))
     
     @property
     def functions(self) -> list[str]:
@@ -575,8 +590,8 @@ class Mind:
     @property
     def build_memory(self) -> list:
         new = []
-        for k, i in self._predefined.items():
-            pre = self.check_content(k, i)
+        for i in self._predefined:
+            pre = self.check_content(i[0], i[1])
             if pre: new.append(pre)
         new.extend(self._memories)
         for i in self._notice:
@@ -657,12 +672,14 @@ class Mind:
                     if tcchunk['function']['arguments']:
                         tc['function']['arguments'] += tcchunk['function']['arguments']
         
-        self.add_memory('assistant', content)
 
         if tool_calls:
+            self.add_content('assistant', content, tool_calls=tool_calls)
             results = self.idf.calls(tool_calls)
             self._memories.extend(results)
             yield from self.__request_stream(reasoning=reasoning)
+        else:
+            self.add_content('assistant', content)
 
     
     def request(self, stream:bool=False, reasoning:bool=True):
