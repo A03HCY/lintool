@@ -77,3 +77,30 @@ class WeatherForecast:
     high: str
     low: str
     hours: List[HourlyForecast] = field(default_factory=list)
+
+email_service_map = {
+    'qq.com': {
+        'imap': 'imap.qq.com',
+        'stmp': 'stmp.qq.com',
+    },
+}
+
+@dataclass
+class EmailEndpoint:
+    imap: str = field(default=None)
+    stmp: str = field(default=None)
+    ssl: bool = field(default=True)
+    account: str = field(default=None)
+    authorization: str = field(default=None)
+
+    def __init__(self, imap=None, stmp=None, ssl=True, account=None, authorization=None):
+        self.imap = imap
+        self.stmp = stmp
+        self.ssl = ssl
+        self.account = account
+        self.authorization = authorization
+        email_service = self.account.split('@')[-1]
+        if not self.imap:
+            self.imap = email_service_map.get(email_service, {}).get('imap')
+        if not self.stmp:
+            self.stmp = email_service_map.get(email_service, {}).get('stmp')
