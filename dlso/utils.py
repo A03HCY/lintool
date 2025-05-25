@@ -56,17 +56,17 @@ def safecode(num:int=6, pure_num:bool=False) -> str:
 
 def locate_geo():
     '''
-    获取用户的大致地理位置. 百度API.
+    获取用户的大致地理位置.
     Returns:
         dict:  {'continent': '亚洲', 'country': '中国', 'owner': '...', 'isp': '...', 'prov': 
                 '...省', 'city': '...', 'district': '...'}
     '''
-    from .fetch import req_json
-    result: dict = req_json('https://qifu-api.baidubce.com/ip/local/geo/v1/district').get('data', {})
-    result.pop('zipcode')
-    result.pop('adcode')
-    return result
-    # return req_json('https://my.ip.cn/json/').get('data')
+    from .web_fetch import req_json
+    #result: dict = req_json('https://qifu-api.baidubce.com/ip/local/geo/v1/district').get('data', {})
+    #result.pop('zipcode')
+    #result.pop('adcode')
+    #return result
+    return req_json('https://my.ip.cn/json/').get('data')
 
 
 def req_file(path:str) -> str:

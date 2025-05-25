@@ -3,14 +3,14 @@ from rich import print
 import time
 
 mind = Mind(Endpoint(
-    model='qwq-plus',
+    model='deepseek-v3',
     key='sk-gqBb7gEaQ6FNRpGuimJxJCjoEFoyqGqWoxGQM7z1wrF0OACz',
     endpoint='http://yunwu.ai/v1'
 ))
 
 m = MCPGroup()
 m.bind(mind)
-m.add_client(['python3','-m','mcp_server_fetch'])
+m.add_client(['python','-m','mcp_server_fetch'])
 
 @mind.on_preparing()
 def on_preparing(name):

@@ -223,6 +223,9 @@ class MCPGroup:
         if isinstance(client, str) or isinstance(client, list):
             client = MCPClient(endpoint=client)
         
+        if client._running is False:
+            raise ValueError("client is not running")
+        
         if not isinstance(client, MCPClient):
             raise TypeError("client must be an instance of MCPClient or a string")
             

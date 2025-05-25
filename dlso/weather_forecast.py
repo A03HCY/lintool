@@ -1,7 +1,7 @@
 from typing      import List, Dict
 from dlso        import req_content, req_json
 from bs4         import BeautifulSoup
-from .           import *
+from .data       import *
 
 
 class CMA:
@@ -42,7 +42,7 @@ class CMA:
             
         Examples:
             >>> req_city_id("北京") # req_city_id("beijing")
-            [CityID(id='101010100', city_zh='北京', city_en='Beijing', country='中国')]
+            [CityID(id='...', city_zh='北京', city_en='Beijing', country='中国')]
         """
         name = name.replace('市', '').replace('县', '')
         data = req_json(f'https://weather.cma.cn/api/autocomplete?q={name}')
