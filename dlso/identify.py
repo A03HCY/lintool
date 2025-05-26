@@ -599,12 +599,13 @@ class Mind:
             if pre: new.append(pre)
         return new
     
-    def __request_block(self):
+    def __request_block(self, **kwargs):
         response = self._ai.chat.completions.create(
             model       = self.model,
             messages    = self.build_memory,
             tools       = self.idf.req_info(strict=True),
             tool_choice = "auto",
+            **kwargs
         )
         original_data = to_dict_recursive(response.choices[0])
         data = original_data['message']
@@ -626,13 +627,14 @@ class Mind:
             'content': content
         }
     
-    def __request_stream(self, reasoning:bool=True):
+    def __request_stream(self, reasoning:bool=True, **kwargs):
         response = self._ai.chat.completions.create(
             model       = self.model,
             messages    = self.build_memory,
             tools       = self.idf.req_info(strict=True),
             tool_choice = "auto",
-            stream      = True
+            stream      = True,
+            **kwargs
         )
         tool_calls = []
         content = ''
@@ -682,11 +684,11 @@ class Mind:
             self.add_content('assistant', content)
 
     
-    def request(self, stream:bool=False, reasoning:bool=True):
+    def request(self, stream:bool=False, reasoning:bool=True, **kwargs) -> Union[dict, Any]:
         if stream:
-            return self.__request_stream(reasoning=reasoning)
+            return self.__request_stream(reasoning=reasoning, **kwargs)
         else:
-            return self.__request_block()
+            return self.__request_block(**kwargs)
     
     def forget_all(self):
         self._memories = []

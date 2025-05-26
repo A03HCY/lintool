@@ -1,22 +1,9 @@
-from .utils     import try_for, email, safecode
+from .utils     import try_for, safecode
 from .data      import EmailEndpoint
 from imapclient import IMAPClient
 from rich       import print
 import datetime
 import email
-
-class ImapContext:
-    def __init__(self, endpoint: EmailEndpoint):
-        self.endpoint = endpoint
-        self.client = None
-
-    def __enter__(self):
-        return self.client
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.client:
-            self.client.logout()
-
 
 class EmailService:
     def __init__(self, endpoint: EmailEndpoint):
