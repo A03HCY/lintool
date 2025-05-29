@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing      import List, Optional
+from typing      import List
 
 @dataclass
 class EmailMatch:
@@ -81,26 +81,68 @@ class WeatherForecast:
 email_service_map = {
     'qq.com': {
         'imap': 'imap.qq.com',
-        'stmp': 'stmp.qq.com',
+        'smtp': 'smtp.qq.com',
+    },
+    '163.com': {
+        'imap': 'imap.163.com',
+        'smtp': 'smtp.163.com',
+    },
+    'gmail.com': {
+        'imap': 'imap.gmail.com',
+        'smtp': 'smtp.gmail.com',
+    },
+    'outlook.com': {
+        'imap': 'imap-mail.outlook.com',
+        'smtp': 'smtp.office365.com',
     },
 }
 
 @dataclass
 class EmailEndpoint:
     imap: str = field(default=None)
-    stmp: str = field(default=None)
+    smtp: str = field(default=None)
     ssl: bool = field(default=True)
     account: str = field(default=None)
     authorization: str = field(default=None)
 
-    def __init__(self, imap=None, stmp=None, ssl=True, account=None, authorization=None):
+    def __init__(self, imap=None, smtp=None, ssl=True, account=None, authorization=None):
         self.imap = imap
-        self.stmp = stmp
+        self.smtp = smtp
         self.ssl = ssl
         self.account = account
         self.authorization = authorization
         email_service = self.account.split('@')[-1]
         if not self.imap:
             self.imap = email_service_map.get(email_service, {}).get('imap')
-        if not self.stmp:
-            self.stmp = email_service_map.get(email_service, {}).get('stmp')
+        if not self.smtp:
+            self.smtp = email_service_map.get(email_service, {}).get('smtp')
+        if not self.imap:
+            self.imap = 'imap.' + email_service
+        if not self.smtp:
+            self.smtp = 'smtp.' + email_service
+
+@dataclass
+class EmailAttachment:
+    filename: str = field(default=None)
+    content_type: str = field(default=None)
+    content: bytes = field(default=None)
+    is_inline: bool = field(default=False)
+    cid: str = field(default=None)  # Content-ID
+
+@dataclass
+class EmailRecvContent:
+    email_id: str = field(default=None)
+    subject: str = field(default=None)
+    from_addr: dict = field(default_factory=dict)  # {"name":..., "addr":...}
+    to_addrs: list = field(default_factory=list)   # list[{"name":..., "addr":...}]
+    cc: list = field(default_factory=list)
+    bcc: list = field(default_factory=list)
+    reply_to: dict = field(default_factory=dict)   # {"name":..., "addr":...}
+    date: str = field(default=None)
+    message_id: str = field(default=None)
+    in_reply_to: str = field(default=None)
+    references: str = field(default=None)
+    text: str = field(default=None)
+    html: str = field(default=None)
+    attachments: list[EmailAttachment] = field(default_factory=list)
+    flags: list = field(default_factory=list)

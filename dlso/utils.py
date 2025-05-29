@@ -1,4 +1,4 @@
-from typing    import Callable
+from typing    import Callable, Any
 from functools import wraps
 from time      import sleep
 from re        import search
@@ -6,6 +6,10 @@ from .data     import EmailMatch
 import random
 import string
 import os
+import pickle
+import json
+import yaml
+
 
 def try_for(times: int, delay: int = 0) -> Callable:
     def decorator(func: Callable):
@@ -36,6 +40,16 @@ def try_for(times: int, delay: int = 0) -> Callable:
                 raise RuntimeError("Function was not attempted")
         return wrapper
     return decorator
+
+
+def flatten(q):
+    # 递归展开嵌套OR
+    if isinstance(q, list):
+        res = []
+        for i in q:
+            res.extend(flatten(i))
+        return res
+    return [q]
 
 
 def email(email:str) -> EmailMatch:
@@ -76,3 +90,34 @@ def req_file(path:str) -> str:
     if not os.path.isfile(path): return ''
     with open(path, 'r', encoding='utf-8') as f:
         return f.read()
+
+
+def save_pickle(data: Any, path: str) -> None:
+    with open(path, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def load_pickle(path: str) -> Any:
+    with open(path, 'rb') as f:
+        return pickle.load(f)
+
+
+def save_json(data: Any, path: str) -> None:
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False)
+
+
+def load_json(path: str) -> Any:
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def save_yaml(data: Any, path: str) -> None:
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.dump(data, f, allow_unicode=True)
+
+
+def load_yaml(path: str) -> Any:
+    with open(path, 'r', encoding='utf-8') as f:
+        return yaml.load(f, Loader=yaml.FullLoader)
+

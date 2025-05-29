@@ -1,5 +1,6 @@
 from .utils import (
-    try_for, email, safecode, locate_geo, req_file
+    try_for, email, safecode, locate_geo, req_file, flatten,
+    save_pickle, load_pickle, save_json, load_json, save_yaml, load_yaml
 )
 from .identify import (
     Identify,  Mind, Endpoint
