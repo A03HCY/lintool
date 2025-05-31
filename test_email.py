@@ -1,6 +1,8 @@
 from dlso.email_client import *
 
-e = EmailEndpoint(
+
+e = EmailService(EmailEndpoint(
     account='acdphc@qq.com',
     authorization='qrhwucnhkozkdebb'
-)
+))
+

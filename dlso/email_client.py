@@ -252,8 +252,9 @@ class EmailService:
             if content.from_addr:
                 content.from_addr['name'] = decode_mime_words(content.from_addr['name'])
             content.to_addrs = parse_addr_list(mail.get_all('To', []))
-            for addr in content.to_addrs:
-                addr['name'] = decode_mime_words(addr['name'])
+            if content.to_addrs[0] != None:
+                for addr in content.to_addrs:
+                    addr['name'] = decode_mime_words(addr['name'])
             content.cc = parse_addr_list(mail.get_all('Cc', []))
             for addr in content.cc:
                 addr['name'] = decode_mime_words(addr['name'])
@@ -306,7 +307,7 @@ class EmailService:
             mails.append(content)
         return mails
 
-    def send_mail(self, to_addrs, subject, body, subtype='plain', html_body=None, attachments=None, inline_images=None):
+    def send_mail(self, to_addrs, subject, body, subtype='plain', html_body=None, attachments=None, inline_images=None) -> bool:
         """
         发送邮件，支持附件和内嵌图片（cid）。
         Args:
@@ -318,7 +319,7 @@ class EmailService:
             attachments (str|list): 附件路径。
             inline_images (dict): {'cid': 'path/to/img'}，html_body中用<img src="cid:cid">引用。
         Returns:
-            None
+            bool: 发送成功返回True，否则返回False。
         """
         msg = MIMEMultipart('related') if (html_body or attachments or inline_images) else MIMEText(body, subtype, 'utf-8')
         msg['From'] = self.endpoint.account
@@ -357,8 +358,9 @@ class EmailService:
                         msg.attach(img)
         self.smtp.sendmail(self.endpoint.account, to_addrs, msg.as_string())
         print(f"[green]邮件已发送至 {to_addrs}[/green]")
+        return True
 
-    def set_flags(self, msg_ids, folder='INBOX', seen=None, flagged=None, flags_add=None, flags_remove=None):
+    def set_flags(self, msg_ids, folder='INBOX', seen=None, flagged=None, flags_add=None, flags_remove=None) -> bool:
         """
         更改邮件状态（如已读、未读、星标等），支持自定义IMAP标志。
         Args:
@@ -369,7 +371,7 @@ class EmailService:
             flags_add (list[str]|None): 需添加的IMAP标志（如['Answered', 'Draft']）。
             flags_remove (list[str]|None): 需移除的IMAP标志。
         Returns:
-            None
+            bool: 操作成功返回True，否则返回False。
         """
         self.imap.select_folder(folder)
         if not isinstance(msg_ids, (list, tuple)):
@@ -392,8 +394,9 @@ class EmailService:
             self.imap.add_flags(msg_ids, [norm_flag(f) for f in flags_add])
         if flags_remove:
             self.imap.remove_flags(msg_ids, [norm_flag(f) for f in flags_remove])
+        return True
     
-    def delete(self, msg_ids, folder='INBOX', to_trash=True):
+    def delete(self, msg_ids, folder='INBOX', to_trash=True) -> bool:
         """
         删除指定邮件，支持移动到回收站。
         Args:
@@ -401,7 +404,7 @@ class EmailService:
             folder (str): 文件夹名，支持'*'递归所有文件夹。
             to_trash (bool): True=移动到回收站，False=直接永久删除。
         Returns:
-            None
+            bool: 操作成功返回True，否则返回False。
         """
         if not isinstance(msg_ids, (list, tuple)):
             msg_ids = [msg_ids]
@@ -411,7 +414,7 @@ class EmailService:
                     self.delete(msg_ids, f, to_trash=to_trash)
                 except Exception as e:
                     print(f"[yellow]删除文件失败: {f}: {e}[/yellow]")
-            return
+            return True
         self.imap.select_folder(folder)
         if to_trash:
             # 优先查找常见回收站文件夹
@@ -429,11 +432,12 @@ class EmailService:
                 self.imap.add_flags(msg_ids, [b'\\Deleted'])
                 self.imap.expunge()
                 print(f"[green]邮件已移动到回收站({trash_folder})[/green]")
-                return
+                return True
             else:
                 print("[yellow]未找到回收站文件夹，执行永久删除！[/yellow]")
         self.imap.add_flags(msg_ids, [b'\\Deleted'])
         self.imap.expunge()
+        return True
     
     def when_new(self, folder='INBOX', interval=10):
         """
