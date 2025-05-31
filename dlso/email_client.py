@@ -13,6 +13,8 @@ from email.mime.base      import MIMEBase
 from email                import encoders
 from email.mime.image     import MIMEImage
 from email.header        import decode_header
+import threading
+import time
 
 
 class EmailService:
@@ -26,6 +28,8 @@ class EmailService:
         self.smtp: smtplib.SMTP = None
         self._init_imap()
         self._init_smtp()
+        self._when_new_callbacks = []
+        self._when_new_thread = None
     
     def __del__(self):
         if self.imap:
@@ -85,6 +89,16 @@ class EmailService:
     
     @property
     def folder(self):
+        folders = []
+        for i in self.imap.list_folders():
+            name = i[2]
+            folders.append({
+                'name': name,
+            })
+        return folders
+    
+    @property
+    def folder_info(self):
         """
         获取所有邮箱文件夹及邮件数。
         Returns:
@@ -379,3 +393,113 @@ class EmailService:
         if flags_remove:
             self.imap.remove_flags(msg_ids, [norm_flag(f) for f in flags_remove])
     
+    def delete(self, msg_ids, folder='INBOX', to_trash=True):
+        """
+        删除指定邮件，支持移动到回收站。
+        Args:
+            msg_ids (list/int): 邮件ID或ID列表。
+            folder (str): 文件夹名，支持'*'递归所有文件夹。
+            to_trash (bool): True=移动到回收站，False=直接永久删除。
+        Returns:
+            None
+        """
+        if not isinstance(msg_ids, (list, tuple)):
+            msg_ids = [msg_ids]
+        if folder == '*':
+            for f in [x['name'] for x in self.folder]:
+                try:
+                    self.delete(msg_ids, f, to_trash=to_trash)
+                except Exception as e:
+                    print(f"[yellow]删除文件失败: {f}: {e}[/yellow]")
+            return
+        self.imap.select_folder(folder)
+        if to_trash:
+            # 优先查找常见回收站文件夹
+            trash_candidates = ['Trash', 'Deleted Messages', 'Deleted Items', '已删除邮件', '已删除', '[Gmail]/Trash']
+            trash_folder = None
+            for t in trash_candidates:
+                try:
+                    if t in [x['name'] for x in self.folder]:
+                        trash_folder = t
+                        break
+                except Exception:
+                    continue
+            if trash_folder and trash_folder != folder:
+                self.imap.copy(msg_ids, trash_folder)
+                self.imap.add_flags(msg_ids, [b'\\Deleted'])
+                self.imap.expunge()
+                print(f"[green]邮件已移动到回收站({trash_folder})[/green]")
+                return
+            else:
+                print("[yellow]未找到回收站文件夹，执行永久删除！[/yellow]")
+        self.imap.add_flags(msg_ids, [b'\\Deleted'])
+        self.imap.expunge()
+    
+    def when_new(self, folder='INBOX', interval=10):
+        """
+        装饰器：注册新邮件回调，支持多个回调，线程唯一，可监控多个文件夹。
+        Args:
+            folder (str|list): 监控的文件夹名或文件夹名列表。
+            interval (int): 轮询/IDLE间隔秒数。
+        Returns:
+            装饰器函数。
+        """
+        def decorator(func):
+            self._when_new_callbacks.append(func)
+            if not self._when_new_thread:
+                folders = folder if isinstance(folder, (list, tuple)) else [folder]
+                def poll():
+                    last_ids_map = {f: set(self.search(folder=f)) for f in folders}
+                    while True:
+                        time.sleep(interval)
+                        try:
+                            for f in folders:
+                                current_ids = set(self.search(folder=f))
+                                new_ids = current_ids - last_ids_map[f]
+                                if new_ids:
+                                    for cb in self._when_new_callbacks:
+                                        try:
+                                            cb(list(new_ids), folder=f)
+                                        except Exception as cb_e:
+                                            print(f"[red]新邮件回调异常: {cb_e}[/red]")
+                                last_ids_map[f] = current_ids
+                        except Exception as e:
+                            print(f"[yellow]新邮件监控异常: {e}[/yellow]")
+                def idle():
+                    for f in folders:
+                        self.imap.select_folder(f)
+                    last_ids_map = {f: set(self.search(folder=f)) for f in folders}
+                    while True:
+                        try:
+                            for f in folders:
+                                self.imap.select_folder(f)
+                                self.imap.idle()
+                                responses = self.imap.idle_check(timeout=interval)
+                                self.imap.idle_done()
+                                if responses:
+                                    current_ids = set(self.search(folder=f))
+                                    new_ids = current_ids - last_ids_map[f]
+                                    if new_ids:
+                                        for cb in self._when_new_callbacks:
+                                            try:
+                                                cb(list(new_ids), folder=f)
+                                            except Exception as cb_e:
+                                                print(f"[red]新邮件回调异常: {cb_e}[/red]")
+                                    last_ids_map[f] = current_ids
+                        except Exception as e:
+                            print(f"[yellow]IMAP IDLE异常，自动重连: {e}[/yellow]")
+                            try:
+                                self._init_imap()
+                            except Exception as e2:
+                                print(f"[red]IMAP重连失败: {e2}[/red]")
+                                time.sleep(interval)
+                            poll()
+                            break
+                if hasattr(self.imap, 'idle'):
+                    t = threading.Thread(target=idle, daemon=True)
+                else:
+                    t = threading.Thread(target=poll, daemon=True)
+                t.start()
+                self._when_new_thread = t
+            return func
+        return decorator

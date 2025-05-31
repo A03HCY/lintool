@@ -17,5 +17,8 @@ from .weather_forecast import (
 from .mcp import (
     MCPClient, MCPGroup
 )
+from .email_client import (
+    EmailService
+)
 
 __version__ = '0.0.1'

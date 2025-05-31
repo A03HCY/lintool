@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from typing      import List
+import base64
+import re
 
 @dataclass
 class EmailMatch:
@@ -146,3 +148,22 @@ class EmailRecvContent:
     html: str = field(default=None)
     attachments: list[EmailAttachment] = field(default_factory=list)
     flags: list = field(default_factory=list)
+
+    def to_readable_html(self):
+        """
+        返回可直接浏览器渲染的html，自动将cid图片替换为base64内嵌。
+        """
+        if not self.html:
+            return self.text or ''
+        html = self.html
+        # cid:xxx => data:image/...;base64,...
+        def repl(m):
+            cid = m.group(1)
+            for att in self.attachments:
+                if att.is_inline and att.cid and att.cid == cid:
+                    mime = att.content_type or 'application/octet-stream'
+                    b64 = base64.b64encode(att.content).decode()
+                    return f"data:{mime};base64,{b64}"
+            return m.group(0)
+        html = re.sub(r'cid:([^\"\' >]+)', repl, html)
+        return html
