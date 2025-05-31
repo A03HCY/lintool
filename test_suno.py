@@ -3,7 +3,7 @@ from rich import print
 
 payload = {
     "prompt": "",
-    "tags": "instrumental, bass solo, groovy, funky, melodic bass",
+    "tags": "instrumental, BassSolo, BassGuitar, BassLine, MusicCreation, GrooveBass, BassVibes, BassPlayer, Improvisation, BassCommunity, MusicLovers, BassGroove, SoloPerformance, BassArt, LowEnd, MusicJourney",
     "mv": "chirp-v4",
     "make_instrumental": True,
     "title": "Deep Groove Excursion"
@@ -22,7 +22,7 @@ if response.status_code == 200:
     print("[green]Request was successful![/green]")
     print(response.json())'''
 
-data = 'c1f5969c-199b-438b-b55b-1c0d33dc17d5'
+data = '4eaac1de-b59b-428b-8d3b-eb4bbaee1ae1'
 
 response = requests.get(f'https://yunwu.ai/suno/fetch/{data}', headers=headers)
 

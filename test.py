@@ -10,7 +10,7 @@ mind = Mind(Endpoint(
 
 m = MCPGroup()
 m.bind(mind)
-m.add_client(['python','-m','mcp_server_fetch'])
+# m.add_client(['python','-m','mcp_server_fetch'])
 
 @mind.on_preparing()
 def on_preparing(name):

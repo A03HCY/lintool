@@ -1,5 +1,5 @@
 import sqlite3
-import hashlib, uuid
+import uuid
 import datetime
 import ast
 
