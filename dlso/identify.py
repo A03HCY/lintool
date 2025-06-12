@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from .mcp        import MCPClient
 from dlso        import req_file
 import inspect
+import requests
 import re
 import os
 import json
@@ -13,6 +14,61 @@ class Endpoint:
     model:str    = field(default='')
     key:str      = field(default='')
     endpoint:str = field(default='')
+
+    @staticmethod
+    def req(endpoint: str, key: str, payload: dict={}, url:str='/chat/completions', method:str='POST') -> dict:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {key}"
+        }
+        api = endpoint + url
+        if method.upper() == 'GET':
+            response = requests.get(api, headers=headers, params=payload)
+        elif method.upper() == 'POST':
+            response = requests.post(api, headers=headers, json=payload)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+        if response.status_code != 200:
+            raise Exception(f"Request failed with status code {response.status_code}: {response.text}")
+        try:
+            return response.json()
+        except json.JSONDecodeError:
+            raise ValueError(f"Response is not valid JSON: {response.text}")
+    
+    def available_models(self) -> List[str]:
+        """
+        获取可用模型列表
+        """
+        response = self.req(
+            endpoint=self.endpoint,
+            key=self.key,
+            url='/models',
+            method='GET'
+        )
+        return [model['id'] for model in response.get('data', []) if 'id' in model]
+    
+    def embed(self, text: str, model: str='default') -> List[float]:
+        if model == 'default':
+            model = self.model
+        response = self.req(
+            endpoint=self.endpoint,
+            key=self.key,
+            payload={
+                "model": model,
+                "input": text
+            },
+            url='/embeddings',
+            method='POST'
+        )
+        data: dict = response.get('data', [])
+        if not data:
+            raise ValueError("No embeddings returned from the API")
+        if len(data) != 1:
+            raise ValueError("Expected a single embedding, but got multiple")
+        data = data[0]
+        if 'embedding' not in data:
+            raise ValueError("Embedding not found in the response")
+        return data['embedding']
 
 
 def to_dict_recursive(obj: Any) -> Union[Dict, List, Tuple, Any]:

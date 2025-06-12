@@ -3,7 +3,7 @@ from .utils import (
     save_pickle, load_pickle, save_json, load_json, save_yaml, load_yaml
 )
 from .identify import (
-    Identify,  Mind, Endpoint
+    Identify,  Mind, Endpoint, to_dict_recursive
 )
 from .file_system import (
     file_opration, directory_operation, archive_operation
