@@ -6,14 +6,11 @@ from .data     import EmailMatch
 import random
 import string
 import os
-<<<<<<< Updated upstream
 import pickle
 import json
 import yaml
-
-=======
 import base64
->>>>>>> Stashed changes
+
 
 def try_for(times: int, delay: int = 0) -> Callable:
     def decorator(func: Callable):
@@ -96,7 +93,6 @@ def req_file(path:str, mode:str='r', encoding:str='utf-8') -> str:
         return f.read()
 
 
-<<<<<<< Updated upstream
 def save_pickle(data: Any, path: str) -> None:
     with open(path, 'wb') as f:
         pickle.dump(data, f)
@@ -126,7 +122,5 @@ def load_yaml(path: str) -> Any:
     with open(path, 'r', encoding='utf-8') as f:
         return yaml.load(f, Loader=yaml.FullLoader)
 
-=======
 def req_base64_file(path:str) -> str:
     return base64.b64encode(req_file(path, mode='rb')).decode('utf-8')
->>>>>>> Stashed changes
