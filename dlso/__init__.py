@@ -1,6 +1,10 @@
 from .utils import (
+<<<<<<< Updated upstream
     try_for, email, safecode, locate_geo, req_file, flatten,
     save_pickle, load_pickle, save_json, load_json, save_yaml, load_yaml
+=======
+    try_for, email, safecode, locate_geo, req_file, req_base64_file
+>>>>>>> Stashed changes
 )
 from .identify import (
     Identify,  Mind, Endpoint, to_dict_recursive

@@ -36,8 +36,16 @@ class MCPClient:
         self._stdio: StdioClient = None
 
         # 启动消息接收线程
-        self.recv_thread = threading.Thread(target=self._recv_loop, daemon=True)
-        self.recv_thread.start()
+        if self._method == 'sse':
+            self.recv_thread = threading.Thread(target=self._sse_recv_loop, daemon=True)
+            self.recv_thread.start()
+        if self._method == 'stdio':
+            try:
+                self._stdio = StdioClient(self.endpoint)
+                self.endpoint_ready.set()
+            except:
+                self._running = False
+                raise Exception(f"Failed to start stdio client: {self.endpoint}")
         try:
             self._init_client()
         except:
@@ -115,13 +123,6 @@ class MCPClient:
         except json.JSONDecodeError:
             return
         return data
-    
-    def _recv_loop(self):
-        if self._method == 'sse':
-            self._sse_recv_loop()
-        elif self._method == 'stdio':
-            self._stdio = StdioClient(self.endpoint)
-            self.endpoint_ready.set()
 
     def post(self, method=None, params=None, timeout=10, wait_for_response=True):
         self.endpoint_ready.wait()
@@ -221,7 +222,11 @@ class MCPGroup:
             client: MCPClient实例或endpoint字符串或命令参数
         """
         if isinstance(client, str) or isinstance(client, list):
-            client = MCPClient(endpoint=client)
+            try:
+                client = MCPClient(endpoint=client)
+            except:
+                print(f"Failed to create client: {client}")
+                return
         
         if client._running is False:
             raise ValueError("client is not running")

@@ -1,7 +1,7 @@
 from typing      import Any, Callable, Union, List, Tuple, Dict
 from dataclasses import dataclass, field
 from .mcp        import MCPClient
-from dlso        import req_file
+from dlso        import req_file, req_base64_file
 import inspect
 import requests
 import re
@@ -616,7 +616,23 @@ class Mind:
             base_url = endpoint.endpoint
         )
     
-    def add_content(self, role:str, content:str|list[dict[str, Any]], **kwargs):
+    def add_content(self, role:str, content:str|list[dict[str, Any]], image:str=None, **kwargs):
+        if image:
+            image = image if image.startswith('http') else f"data:image/jpeg;base64,{req_base64_file(image)}"
+        if isinstance(content, str) and image:
+            content = [
+                {
+                    "type": "text",
+                    "text": content
+                }
+            ]
+        if isinstance(content, list) and image:
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": image,
+                }
+            })
         data = {
             "role": role,
             "content": content,
