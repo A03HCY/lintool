@@ -731,7 +731,7 @@ class Mind:
             if delta.get('tool_calls'):
                 tcchunklist = delta['tool_calls']
                 for tcchunk in tcchunklist:
-                    if len(tool_calls) <= tcchunk['index']:
+                    while len(tool_calls) <= tcchunk['index']:
                         tool_calls.append({'id': '', 'type': 'function', 'function': {'name': '', 'arguments': ''}})
                     tc = tool_calls[tcchunk['index']]
                     
@@ -746,6 +746,10 @@ class Mind:
                     if tcchunk['function']['arguments']:
                         tc['function']['arguments'] += tcchunk['function']['arguments']
         
+        temp = []
+        for i in tool_calls:
+            if i['id']: temp.append(i)
+        tool_calls = temp
 
         if tool_calls:
             self.add_content('assistant', content, tool_calls=tool_calls)
